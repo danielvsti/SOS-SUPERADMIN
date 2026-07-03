@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SOS Super Admin</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">Sistema SOS Municipal</div>
+      <h1>SUPER ADMIN</h1>
+      <p>Alta multi-comuna: centros de control, administrador municipal, geocerca y Unidades Vecinales.</p>
+    </div>
+    <div class="session-box">
+      <div id="sessionLabel" class="session-pill" hidden></div>
+      <button id="logoutBtn" class="secondary" hidden>Cerrar sesión</button>
+    </div>
+  </header>
+
+  <section id="loginView" class="login-view">
+    <div class="card login-card">
+      <div class="eyebrow">Acceso VS&amp;TI</div>
+      <h2>Entrar como SUPER ADMIN</h2>
+      <p>Solo usuarios con rol <strong>SUPER_ADMIN</strong> pueden crear comunas y primer administrador municipal.</p>
+      <label>Teléfono SUPER ADMIN
+        <input id="loginPhone" placeholder="+569XXXXXXXX" autocomplete="tel" />
+      </label>
+      <button id="loginBtn" class="primary">Entrar</button>
+      <div id="loginMsg" class="error"></div>
+    </div>
+  </section>
+
+  <main id="appView" class="layout" hidden>
+    <section class="card">
+      <div class="section-head">
+        <div>
+          <h2>1. Crear / actualizar Centro de Control</h2>
+          <p>Usa formato de código tipo <strong>CC-QUILPUE</strong>, <strong>CC-VINA</strong>, <strong>CC-CONCON</strong>.</p>
+        </div>
+        <button id="reloadCentersBtn" class="secondary">Actualizar listado</button>
+      </div>
+
+      <div class="grid two">
+        <label>Código
+          <input id="ccCode" placeholder="CC-QUILPUE" />
+        </label>
+        <label>Nombre
+          <input id="ccName" placeholder="Centro de Control Quilpué" />
+        </label>
+        <label>Municipalidad
+          <input id="ccMunicipality" placeholder="Quilpué" />
+        </label>
+        <label>Región
+          <input id="ccRegion" placeholder="Valparaíso" />
+        </label>
+        <label>Latitud centro mapa
+          <input id="ccLat" type="number" step="0.000001" placeholder="-33.0475" />
+        </label>
+        <label>Longitud centro mapa
+          <input id="ccLon" type="number" step="0.000001" placeholder="-71.4421" />
+        </label>
+        <label>Zoom
+          <input id="ccZoom" type="number" value="13" min="8" max="18" />
+        </label>
+        <label>Buffer geocerca metros
+          <input id="ccBuffer" type="number" value="100" min="0" max="1000" />
+        </label>
+      </div>
+      <div class="toolbar">
+        <button id="saveCenterBtn" class="primary">Guardar centro</button>
+        <span id="centerMsg" class="msg"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2. Crear primer ADMIN municipal</h2>
+      <p>Este usuario queda amarrado al centro seleccionado. Después podrá crear operadores, resolutores y vecinos de su comuna desde SOS-ADMIN.</p>
+      <div class="grid two">
+        <label>Nombre completo
+          <input id="adminName" placeholder="Administrador Municipal Quilpué" />
+        </label>
+        <label>Teléfono
+          <input id="adminPhone" placeholder="+569XXXXXXXX" />
+        </label>
+        <label>Email
+          <input id="adminEmail" placeholder="admin@municipio.cl" />
+        </label>
+        <label>Dirección / referencia
+          <input id="adminAddress" placeholder="Municipalidad / Central" />
+        </label>
+      </div>
+      <div class="toolbar">
+        <button id="saveAdminBtn" class="primary">Crear / actualizar ADMIN</button>
+        <span id="adminMsg" class="msg"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>3. Cargar boundary comunal</h2>
+      <p>Sube un GeoJSON <strong>Polygon/MultiPolygon</strong>, Feature o FeatureCollection. Se usará para validar jurisdicción y centrar el mapa.</p>
+      <div class="grid two">
+        <label>Archivo boundary .geojson
+          <input id="boundaryFile" type="file" accept=".json,.geojson,application/geo+json,application/json" />
+        </label>
+        <label>Zoom mapa boundary
+          <input id="boundaryZoom" type="number" value="13" min="8" max="18" />
+        </label>
+      </div>
+      <div class="toolbar">
+        <button id="uploadBoundaryBtn" class="primary">Cargar boundary</button>
+        <span id="boundaryMsg" class="msg"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>4. Cargar Unidades Vecinales / sectores</h2>
+      <p>Sube un GeoJSON <strong>FeatureCollection</strong>. El sistema buscará propiedades como <code>sector_code</code>, <code>NOMBRE</code>, <code>UV_CARTO</code>, <code>unidad</code> o <code>barrio</code>.</p>
+      <div class="grid two">
+        <label>Archivo UV / sectores .geojson
+          <input id="sectorsFile" type="file" accept=".json,.geojson,application/geo+json,application/json" />
+        </label>
+        <label>Reclasificar tickets existentes
+          <select id="reclassifyAfter">
+            <option value="true">Sí</option>
+            <option value="false">No</option>
+          </select>
+        </label>
+      </div>
+      <div class="toolbar">
+        <button id="uploadSectorsBtn" class="primary">Cargar UV / sectores</button>
+        <span id="sectorsMsg" class="msg"></span>
+      </div>
+    </section>
+
+    <section class="card wide">
+      <div class="section-head">
+        <h2>Centros de control</h2>
+        <span id="centersCount" class="summary">-</span>
+      </div>
+      <div id="centersList" class="centers-list"></div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>
