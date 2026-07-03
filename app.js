@@ -2,6 +2,8 @@ const SOS_CONFIG = window.SOS_CONFIG || {};
 const API = SOS_CONFIG.API_BASE || "https://sos.vsti.cl";
 const TOKEN_KEY = "sos_superadmin_token";
 const USER_KEY = "sos_superadmin_user";
+const API_TIMEOUT_MS = Number(SOS_CONFIG.API_TIMEOUT_MS || 20000);
+
 
 const $ = (id) => document.getElementById(id);
 let centers = [];
@@ -11,28 +13,63 @@ function user() { try { return JSON.parse(localStorage.getItem(USER_KEY) || "nul
 function setSession(tokenValue, userValue) { localStorage.setItem(TOKEN_KEY, tokenValue); localStorage.setItem(USER_KEY, JSON.stringify(userValue || {})); }
 function clearSession() { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USER_KEY); }
 function headers(extra = {}) { return { "Content-Type": "application/json", ...(token() ? { Authorization: `Bearer ${token()}` } : {}), ...extra }; }
-function toast(message) { const el = $("toast"); el.textContent = message; el.hidden = false; setTimeout(() => el.hidden = true, 3500); }
-function setMsg(id, message, ok = true) { const el = $(id); el.textContent = message || ""; el.style.color = ok ? "#16a34a" : "#b91c1c"; }
+function toast(message) { const el = $("toast"); if (!el) return; el.textContent = message; el.hidden = false; setTimeout(() => el.hidden = true, 3500); }
+function setMsg(id, message, ok = true) { const el = $(id); if (!el) return; el.textContent = message || ""; el.style.color = ok ? "#16a34a" : "#b91c1c"; }
 function ccCode() { return ($("ccCode").value || "").trim().toUpperCase(); }
 
 async function api(path, options = {}) {
-  const res = await fetch(`${API}${path}`, { cache: "no-store", ...options, headers: { ...headers(), ...(options.headers || {}) } });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.status === "error") throw new Error(data.message || `HTTP ${res.status}`);
-  return data;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const url = `${API}${path}`;
+
+  try {
+    const res = await fetch(url, {
+      cache: "no-store",
+      ...options,
+      signal: controller.signal,
+      headers: { ...headers(), ...(options.headers || {}) }
+    });
+
+    const raw = await res.text();
+    let data = {};
+    if (raw) {
+      try {
+        data = JSON.parse(raw);
+      } catch (_) {
+        data = { status: "error", message: raw.slice(0, 300) };
+      }
+    }
+
+    if (!res.ok || data.status === "error") {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+
+    return data;
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error(`La API no respondió en ${Math.round(API_TIMEOUT_MS / 1000)} segundos. Revisa si API-TEST está despierta/redeployada.`);
+    }
+    if (error instanceof TypeError) {
+      throw new Error(`No fue posible conectar con la API (${API}). Revisa CORS, URL o estado de Render.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 async function login() {
   const phone = $("loginPhone").value.trim();
   if (!phone) return setMsg("loginMsg", "Ingresa el teléfono SUPER_ADMIN", false);
   $("loginBtn").disabled = true;
-  setMsg("loginMsg", "Validando...", true);
+  setMsg("loginMsg", `Validando contra ${API}...`, true);
   try {
     const data = await api("/auth/panel-login", { method: "POST", body: JSON.stringify({ phone, panel_type: "SUPER_ADMIN" }) });
     if (data.user?.role !== "SUPER_ADMIN") throw new Error("Este acceso requiere rol SUPER_ADMIN");
     setSession(data.token, data.user);
     showApp(data.user);
-    await loadCenters();
+    setMsg("loginMsg", "", true);
+    await loadCenters().catch((error) => toast(`Sesión OK, pero no pude cargar centros: ${error.message}`));
   } catch (error) {
     clearSession();
     setMsg("loginMsg", error.message, false);
@@ -48,7 +85,8 @@ async function checkSession() {
     if (data.user?.role !== "SUPER_ADMIN") throw new Error("Este acceso requiere rol SUPER_ADMIN");
     setSession(token(), data.user);
     showApp(data.user);
-    await loadCenters();
+    setMsg("loginMsg", "", true);
+    await loadCenters().catch((error) => toast(`Sesión OK, pero no pude cargar centros: ${error.message}`));
   } catch (error) {
     clearSession();
     showLogin(error.message);
@@ -201,6 +239,15 @@ async function uploadSectors() {
 function escapeHtml(value) {
   return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
+
+window.addEventListener("error", (event) => {
+  setMsg("loginMsg", event.message || "Error JavaScript inesperado", false);
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  const message = event.reason?.message || String(event.reason || "Error de promesa no controlado");
+  setMsg("loginMsg", message, false);
+});
 
 window.addEventListener("DOMContentLoaded", () => {
   $("loginBtn").addEventListener("click", login);
