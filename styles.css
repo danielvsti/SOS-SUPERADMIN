@@ -47,3 +47,97 @@ button:disabled { opacity:.55; cursor:not-allowed; }
 .toast { position:fixed; right:18px; bottom:18px; background:#0f172a; color:#fff; padding:14px 18px; border-radius:16px; box-shadow:var(--shadow); font-weight:900; }
 code { background:#e2e8f0; padding:2px 6px; border-radius:6px; }
 @media (max-width: 760px) { .topbar { flex-direction:column; align-items:flex-start; padding:24px; } .grid.two, .center-row { grid-template-columns:1fr; } }
+
+/* --- Mejora consulta ADMIN municipal en SUPERADMIN --- */
+.current-admins-panel {
+  margin-top: 22px;
+  border: 1px solid #dbeafe;
+  background: #f8fbff;
+  border-radius: 20px;
+  padding: 18px;
+}
+.compact-head {
+  align-items: center;
+  margin-bottom: 12px;
+}
+.compact-head h3 {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+.compact-head p {
+  margin: 0;
+}
+.admin-list {
+  display: grid;
+  gap: 10px;
+}
+.empty-admins {
+  color: var(--muted);
+  font-weight: 800;
+  padding: 14px;
+  border: 1px dashed #bfdbfe;
+  background: #eff6ff;
+  border-radius: 16px;
+}
+.admin-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid #dbe3ef;
+  border-radius: 16px;
+  background: #ffffff;
+}
+.admin-name {
+  font-weight: 950;
+  color: var(--ink);
+  font-size: 16px;
+}
+.admin-meta {
+  margin-top: 3px;
+  color: #334155;
+  font-weight: 850;
+}
+.admin-row small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-weight: 700;
+}
+.small-btn {
+  padding: 9px 12px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+.center-row-warning {
+  border-color: #fde68a;
+  background: #fffaf0;
+}
+.center-admin-summary {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-weight: 850;
+  font-size: 13px;
+}
+.center-admin-summary.missing {
+  background: #fef3c7;
+  color: #92400e;
+}
+.center-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+@media (max-width: 760px) {
+  .admin-row,
+  .center-actions {
+    grid-template-columns: 1fr;
+  }
+  .small-btn,
+  .center-actions button {
+    width: 100%;
+  }
+}

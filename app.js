@@ -284,6 +284,92 @@ function logout() {
   showLogin("Sesión cerrada.");
 }
 
+
+function adminsForCenter(center) {
+  if (!center) return [];
+  const raw = center.admins;
+  if (Array.isArray(raw)) return raw.filter(Boolean);
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+    } catch (_) {
+      return [];
+    }
+  }
+  return [];
+}
+
+function primaryAdminForCenter(center) {
+  const admins = adminsForCenter(center).filter((admin) => admin && admin.is_active !== false);
+  return admins[0] || adminsForCenter(center)[0] || null;
+}
+
+function clearAdminForm() {
+  setValue("adminName", "");
+  setValue("adminPhone", "");
+  setValue("adminEmail", "");
+  setValue("adminAddress", "");
+  setMsg("adminMsg", "Formulario listo para crear un nuevo ADMIN municipal.", true);
+}
+
+function fillAdminForm(admin) {
+  if (!admin) {
+    clearAdminForm();
+    return;
+  }
+  setValue("adminName", admin.full_name || "");
+  setValue("adminPhone", admin.phone || "");
+  setValue("adminEmail", admin.email || "");
+  setValue("adminAddress", admin.declared_address || "");
+}
+
+function renderCurrentAdmins(center) {
+  const title = $("currentAdminsTitle");
+  const count = $("currentAdminsCount");
+  const list = $("currentAdminsList");
+  if (!list) return;
+
+  const admins = adminsForCenter(center);
+  const centerLabel = center?.code ? `${center.code} · ${center.municipality || center.name || ""}` : "centro seleccionado";
+
+  if (title) title.textContent = `Administradores actuales · ${center?.code || "sin centro"}`;
+  if (count) count.textContent = `${admins.length} admin${admins.length === 1 ? "" : "s"}`;
+
+  if (!center) {
+    list.className = "admin-list empty-admins";
+    list.textContent = "Selecciona un centro para ver sus administradores.";
+    return;
+  }
+
+  if (!admins.length) {
+    list.className = "admin-list empty-admins";
+    list.innerHTML = `No hay ADMIN municipal registrado para <strong>${escapeHtml(centerLabel)}</strong>. Puedes crearlo con el formulario superior.`;
+    return;
+  }
+
+  list.className = "admin-list";
+  list.innerHTML = admins.map((admin, index) => `
+    <div class="admin-row">
+      <div>
+        <div class="admin-name">${escapeHtml(admin.full_name || "Administrador sin nombre")}</div>
+        <div class="admin-meta">${escapeHtml(admin.phone || "sin teléfono")} · ${escapeHtml(admin.email || "sin email")}</div>
+        <small>${escapeHtml(admin.declared_address || "sin dirección")} · ${escapeHtml(admin.validation_status || "-")} · ${admin.is_active === false ? "inactivo" : "activo"}</small>
+      </div>
+      <button class="secondary small-btn" type="button" data-admin-center="${escapeHtml(center.code)}" data-admin-index="${index}">Usar / editar</button>
+    </div>
+  `).join("");
+
+  list.querySelectorAll("button[data-admin-index]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const selected = admins[Number(btn.dataset.adminIndex)];
+      fillAdminForm(selected);
+      setMsg("adminMsg", `ADMIN cargado para edición: ${selected?.full_name || selected?.phone || "sin nombre"}`, true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  });
+}
+
 function fillFromCenter(center) {
   setValue("ccCode", center.code || "");
   setValue("ccName", center.name || "");
@@ -293,6 +379,17 @@ function fillFromCenter(center) {
   setValue("ccLon", center.map_center_lon || center.longitude || "");
   setValue("ccZoom", center.map_zoom || 13);
   setValue("ccBuffer", center.geofence_buffer_meters || 100);
+
+  const primaryAdmin = primaryAdminForCenter(center);
+  if (primaryAdmin) {
+    fillAdminForm(primaryAdmin);
+    setMsg("adminMsg", `ADMIN actual cargado: ${primaryAdmin.full_name || primaryAdmin.phone}`, true);
+  } else {
+    clearAdminForm();
+    setMsg("adminMsg", `No hay ADMIN registrado para ${center.code}. Puedes crearlo ahora.`, false);
+  }
+
+  renderCurrentAdmins(center);
 
   window.scrollTo({
     top: 0,
@@ -310,28 +407,41 @@ function renderCenters() {
 
   if (!listEl) return;
 
-  listEl.innerHTML = centers.map((cc) => `
-    <div class="center-row">
-      <div>
-        <div class="center-code">${escapeHtml(cc.code)}</div>
-        <div>${escapeHtml(cc.name || "-")}</div>
-        <small>${escapeHtml(cc.municipality || "-")} · ${escapeHtml(cc.region || "-")}</small>
-      </div>
+  listEl.innerHTML = centers.map((cc) => {
+    const admins = adminsForCenter(cc);
+    const primaryAdmin = primaryAdminForCenter(cc);
+    const adminLabel = primaryAdmin
+      ? `${primaryAdmin.full_name || "ADMIN"} · ${primaryAdmin.phone || "sin teléfono"}`
+      : "Sin ADMIN municipal";
 
-      <div class="badges">
-        <span class="badge ${cc.boundary_type ? "green" : "amber"}">${cc.boundary_type ? "Boundary OK" : "Sin boundary"}</span>
-        <span class="badge">${cc.admins_count || 0} admin</span>
-      </div>
+    return `
+      <div class="center-row ${primaryAdmin ? "" : "center-row-warning"}">
+        <div>
+          <div class="center-code">${escapeHtml(cc.code)}</div>
+          <div>${escapeHtml(cc.name || "-")}</div>
+          <small>${escapeHtml(cc.municipality || "-")} · ${escapeHtml(cc.region || "-")}</small>
+          <div class="center-admin-summary ${primaryAdmin ? "" : "missing"}">
+            <strong>ADMIN:</strong> ${escapeHtml(adminLabel)}
+          </div>
+        </div>
 
-      <div class="badges">
-        <span class="badge">${cc.operators_count || 0} op</span>
-        <span class="badge">${cc.resolvers_count || 0} resolv</span>
-        <span class="badge">${cc.neighbors_count || 0} vec</span>
-      </div>
+        <div class="badges">
+          <span class="badge ${cc.boundary_type ? "green" : "amber"}">${cc.boundary_type ? "Boundary OK" : "Sin boundary"}</span>
+          <span class="badge ${admins.length ? "green" : "amber"}">${admins.length || 0} admin</span>
+        </div>
 
-      <button class="secondary" data-code="${escapeHtml(cc.code)}">Editar</button>
-    </div>
-  `).join("") || `<p>No hay centros cargados.</p>`;
+        <div class="badges">
+          <span class="badge">${cc.operators_count || 0} op</span>
+          <span class="badge">${cc.resolvers_count || 0} resolv</span>
+          <span class="badge">${cc.neighbors_count || 0} vec</span>
+        </div>
+
+        <div class="center-actions">
+          <button class="secondary" data-code="${escapeHtml(cc.code)}">Ver / editar</button>
+        </div>
+      </div>
+    `;
+  }).join("") || `<p>No hay centros cargados.</p>`;
 
   document.querySelectorAll("button[data-code]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -345,6 +455,10 @@ async function loadCenters() {
   const data = await api("/superadmin/control-centers");
   centers = data.control_centers || [];
   renderCenters();
+
+  const selectedCode = ccCode();
+  const selectedCenter = centers.find((item) => item.code === selectedCode);
+  if (selectedCenter) renderCurrentAdmins(selectedCenter);
 }
 
 async function saveCenter() {
@@ -404,9 +518,11 @@ async function saveAdmin() {
       body: JSON.stringify(payload)
     });
 
-    setMsg("adminMsg", `ADMIN ${data.operation}: ${data.user.full_name}`, true);
+    setMsg("adminMsg", `ADMIN ${data.operation}: ${data.user.full_name} · ${data.user.phone}`, true);
     toast("Administrador municipal listo");
     await loadCenters();
+    const updatedCenter = centers.find((item) => item.code === code);
+    if (updatedCenter) fillFromCenter(updatedCenter);
   } catch (error) {
     setMsg("adminMsg", error.message, false);
   }
@@ -531,6 +647,7 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   on("saveCenterBtn", "click", saveCenter);
   on("saveAdminBtn", "click", saveAdmin);
+  on("clearAdminFormBtn", "click", clearAdminForm);
   on("uploadBoundaryBtn", "click", uploadBoundary);
   on("uploadSectorsBtn", "click", uploadSectors);
 
