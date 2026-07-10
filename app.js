@@ -7,6 +7,7 @@ const APP_VERSION = "superadmin-v4-safe-login-20260703";
 
 const $ = (id) => document.getElementById(id);
 let centers = [];
+let emergencyCategories = [];
 
 function token() {
   return localStorage.getItem(TOKEN_KEY) || "";
@@ -237,8 +238,11 @@ async function login() {
     showApp(data.user);
     setMsg("loginMsg", "Sesión SUPER_ADMIN iniciada.", true);
 
-    loadCenters().catch((error) => {
-      logDebug("loadCenters error", error);
+    Promise.allSettled([loadCenters(), loadEmergencyCategories()]).then((results) => {
+      const failed = results.find((result) => result.status === "rejected");
+      if (!failed) return;
+      const error = failed.reason;
+      logDebug("initial load error", error);
       toast(`Sesión OK, pero no pude cargar centros: ${error.message}`);
       const list = $("centersList");
       if (list) {
@@ -270,8 +274,9 @@ async function checkSession() {
     setSession(token(), data.user);
     showApp(data.user);
 
-    loadCenters().catch((error) => {
-      toast(`Sesión OK, pero no pude cargar centros: ${error.message}`);
+    Promise.allSettled([loadCenters(), loadEmergencyCategories()]).then((results) => {
+      const failed = results.find((result) => result.status === "rejected");
+      if (failed) toast(`Sesión OK, pero no pude cargar todo: ${failed.reason.message}`);
     });
   } catch (error) {
     clearSession();
@@ -620,6 +625,147 @@ async function uploadSectors() {
   }
 }
 
+
+function normalizeEmergencyCategory(raw = {}, index = 0) {
+  const type = String(raw.type || raw.category_type || raw.code || "").trim().toUpperCase();
+  return {
+    type: type || `NEW_CATEGORY_${Date.now() % 100000}_${index}`,
+    title: String(raw.title || raw.label || "Nueva categoría").trim(),
+    icon: String(raw.icon || "🆘").trim(),
+    color: String(raw.color || "#2563eb").trim(),
+    priority: Number.isFinite(Number(raw.priority)) ? Number(raw.priority) : 3,
+    enabled: raw.enabled !== false,
+    order: Number.isFinite(Number(raw.order)) ? Number(raw.order) : ((index + 1) * 10),
+    sensitive: raw.sensitive === true,
+    allow_voice: raw.allow_voice !== false,
+    allow_evidence: raw.allow_evidence !== false,
+    allow_nearby_notifications: raw.allow_nearby_notifications === true,
+    allow_sirens: raw.allow_sirens === true
+  };
+}
+
+function renderEmergencyCategories() {
+  const list = $("emergencyCategoriesList");
+  if (!list) return;
+
+  if (!emergencyCategories.length) {
+    list.innerHTML = `<p class="empty-admins">No hay categorías cargadas todavía.</p>`;
+    return;
+  }
+
+  list.innerHTML = emergencyCategories.map((category, index) => `
+    <div class="category-catalog-row" data-category-row="${index}">
+      <div class="category-main-fields">
+        <label>Código técnico
+          <input data-category-field="type" value="${escapeHtml(category.type)}" placeholder="MEDICAL" />
+        </label>
+        <label>Nombre
+          <input data-category-field="title" value="${escapeHtml(category.title)}" placeholder="Médica" />
+        </label>
+        <label>Icono
+          <input data-category-field="icon" value="${escapeHtml(category.icon)}" placeholder="🚑" />
+        </label>
+        <label>Color
+          <input data-category-field="color" type="color" value="${escapeHtml(category.color || "#2563eb")}" />
+        </label>
+        <label>Prioridad
+          <input data-category-field="priority" type="number" min="1" max="9" value="${Number(category.priority || 3)}" />
+        </label>
+        <label>Orden
+          <input data-category-field="order" type="number" min="1" max="999" value="${Number(category.order || ((index + 1) * 10))}" />
+        </label>
+      </div>
+      <div class="category-flags">
+        <label><input data-category-field="enabled" type="checkbox" ${category.enabled !== false ? "checked" : ""}> Disponible</label>
+        <label><input data-category-field="sensitive" type="checkbox" ${category.sensitive ? "checked" : ""}> Sensible</label>
+        <label><input data-category-field="allow_voice" type="checkbox" ${category.allow_voice !== false ? "checked" : ""}> Voz</label>
+        <label><input data-category-field="allow_evidence" type="checkbox" ${category.allow_evidence !== false ? "checked" : ""}> Evidencia</label>
+        <label><input data-category-field="allow_nearby_notifications" type="checkbox" ${category.allow_nearby_notifications ? "checked" : ""}> Avisar vecinos</label>
+        <label><input data-category-field="allow_sirens" type="checkbox" ${category.allow_sirens ? "checked" : ""}> Sirenas</label>
+      </div>
+      <button class="secondary small-btn" type="button" data-remove-category="${index}">Ocultar del catálogo</button>
+    </div>
+  `).join("");
+
+  list.querySelectorAll("[data-remove-category]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const index = Number(button.dataset.removeCategory);
+      if (emergencyCategories[index]) emergencyCategories[index].enabled = false;
+      renderEmergencyCategories();
+      setMsg("categoryMsg", "La categoría quedó marcada como no disponible. Guarda para aplicar.", true);
+    });
+  });
+}
+
+function collectEmergencyCategories() {
+  const list = $("emergencyCategoriesList");
+  if (!list) return emergencyCategories;
+
+  return Array.from(list.querySelectorAll("[data-category-row]")).map((row, index) => {
+    const get = (field) => row.querySelector(`[data-category-field="${field}"]`);
+    return normalizeEmergencyCategory({
+      type: get("type")?.value,
+      title: get("title")?.value,
+      icon: get("icon")?.value,
+      color: get("color")?.value,
+      priority: Number(get("priority")?.value),
+      order: Number(get("order")?.value),
+      enabled: Boolean(get("enabled")?.checked),
+      sensitive: Boolean(get("sensitive")?.checked),
+      allow_voice: Boolean(get("allow_voice")?.checked),
+      allow_evidence: Boolean(get("allow_evidence")?.checked),
+      allow_nearby_notifications: Boolean(get("allow_nearby_notifications")?.checked),
+      allow_sirens: Boolean(get("allow_sirens")?.checked)
+    }, index);
+  }).sort((a, b) => Number(a.order || 999) - Number(b.order || 999));
+}
+
+async function loadEmergencyCategories() {
+  try {
+    setMsg("categoryMsg", "Cargando catálogo...", true);
+    const data = await api("/superadmin/emergency-categories");
+    emergencyCategories = (data.categories || []).map(normalizeEmergencyCategory);
+    renderEmergencyCategories();
+    setMsg("categoryMsg", `Catálogo cargado: ${emergencyCategories.length} categorías`, true);
+  } catch (error) {
+    setMsg("categoryMsg", error.message, false);
+  }
+}
+
+async function saveEmergencyCategories() {
+  try {
+    const categories = collectEmergencyCategories();
+    if (!categories.some((category) => category.enabled !== false)) {
+      throw new Error("Debe quedar al menos una categoría disponible.");
+    }
+    const data = await api("/superadmin/emergency-categories", {
+      method: "PUT",
+      body: JSON.stringify({ categories })
+    });
+    emergencyCategories = (data.categories || categories).map(normalizeEmergencyCategory);
+    renderEmergencyCategories();
+    setMsg("categoryMsg", "Catálogo maestro guardado.", true);
+    toast("Catálogo maestro actualizado");
+  } catch (error) {
+    setMsg("categoryMsg", error.message, false);
+  }
+}
+
+function addEmergencyCategory() {
+  emergencyCategories = collectEmergencyCategories();
+  emergencyCategories.push(normalizeEmergencyCategory({
+    type: `CUSTOM_${Date.now() % 100000}`,
+    title: "Nueva categoría",
+    icon: "🆘",
+    color: "#2563eb",
+    priority: 3,
+    enabled: true,
+    order: (emergencyCategories.length + 1) * 10
+  }, emergencyCategories.length));
+  renderEmergencyCategories();
+}
+
+
 window.addEventListener("error", (event) => {
   logDebug("window error", event.message);
   setMsg("loginMsg", event.message || "Error JavaScript inesperado", false);
@@ -650,6 +796,9 @@ window.addEventListener("DOMContentLoaded", () => {
   on("clearAdminFormBtn", "click", clearAdminForm);
   on("uploadBoundaryBtn", "click", uploadBoundary);
   on("uploadSectorsBtn", "click", uploadSectors);
+  on("reloadCategoriesBtn", "click", loadEmergencyCategories);
+  on("addCategoryBtn", "click", addEmergencyCategory);
+  on("saveCategoriesBtn", "click", saveEmergencyCategories);
 
   checkSession();
 });
