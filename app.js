@@ -683,18 +683,8 @@ function renderEmergencyCategories() {
         <label><input data-category-field="allow_nearby_notifications" type="checkbox" ${category.allow_nearby_notifications ? "checked" : ""}> Avisar vecinos</label>
         <label><input data-category-field="allow_sirens" type="checkbox" ${category.allow_sirens ? "checked" : ""}> Sirenas</label>
       </div>
-      <button class="secondary small-btn" type="button" data-remove-category="${index}">Ocultar del catálogo</button>
     </div>
   `).join("");
-
-  list.querySelectorAll("[data-remove-category]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const index = Number(button.dataset.removeCategory);
-      if (emergencyCategories[index]) emergencyCategories[index].enabled = false;
-      renderEmergencyCategories();
-      setMsg("categoryMsg", "La categoría quedó marcada como no disponible. Guarda para aplicar.", true);
-    });
-  });
 }
 
 function collectEmergencyCategories() {
