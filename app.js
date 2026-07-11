@@ -10,23 +10,27 @@ let centers = [];
 let emergencyCategories = [];
 
 function token() {
-  return localStorage.getItem(TOKEN_KEY) || "";
+  return sessionStorage.getItem(TOKEN_KEY) || "";
 }
 
 function user() {
   try {
-    return JSON.parse(localStorage.getItem(USER_KEY) || "null");
+    return JSON.parse(sessionStorage.getItem(USER_KEY) || "null");
   } catch {
     return null;
   }
 }
 
 function setSession(tokenValue, userValue) {
-  localStorage.setItem(TOKEN_KEY, tokenValue);
-  localStorage.setItem(USER_KEY, JSON.stringify(userValue || {}));
+  sessionStorage.setItem(TOKEN_KEY, tokenValue);
+  sessionStorage.setItem(USER_KEY, JSON.stringify(userValue || {}));
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
 }
 
 function clearSession() {
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(USER_KEY);
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
 }
@@ -204,6 +208,7 @@ function showApp(currentUser) {
 
 async function login() {
   const phone = getValue("loginPhone");
+  const code = getValue("loginCode");
 
   if (!phone) {
     setMsg("loginMsg", "Ingresa el teléfono SUPER_ADMIN", false);
@@ -222,9 +227,17 @@ async function login() {
       method: "POST",
       body: JSON.stringify({
         phone,
-        panel_type: "SUPER_ADMIN"
+        panel_type: "SUPER_ADMIN",
+        code: code || undefined,
+        channel: SOS_CONFIG.DEMO_MODE ? "demo" : undefined
       })
     });
+
+    if (data.requires_verification) {
+      setMsg("loginMsg", data.demo_code ? `Código demo: ${data.demo_code}` : `Código enviado por ${data.otp_channel || "SMS"}.`, true);
+      $("loginCode")?.focus();
+      return;
+    }
 
     if (!data.token) {
       throw new Error("La API respondió login OK, pero no devolvió token.");
