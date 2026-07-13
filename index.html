@@ -77,6 +77,30 @@
       </div>
     </section>
 
+    <section class="card license-card">
+      <div class="section-head">
+        <div>
+          <h2>Módulo comercial de Comunicaciones</h2>
+          <p>Esta licencia sólo puede ser habilitada por VS&amp;TI. El ADMIN municipal podrá administrar anuncios, pero no cambiar su contratación.</p>
+        </div>
+        <span id="communicationsLicenseBadge" class="badge amber">Selecciona un centro</span>
+      </div>
+      <div class="grid two">
+        <label class="license-check"><input id="licenseCommunicationsEnabled" type="checkbox" /> Módulo de anuncios habilitado</label>
+        <label class="license-check"><input id="licenseMunicipalBroadcasts" type="checkbox" checked /> Anuncios municipales</label>
+        <label class="license-check"><input id="licensePersonalNotifications" type="checkbox" /> Avisos individuales</label>
+        <label class="license-check"><input id="licenseSurveys" type="checkbox" /> Encuestas</label>
+        <label class="license-check"><input id="licenseVideo" type="checkbox" checked /> Videos</label>
+        <label class="license-check"><input id="licensePushDelivery" type="checkbox" /> Entrega push (cuando APNs/FCM esté operativo)</label>
+        <label>Máximo anuncios activos<input id="licenseMaxAnnouncements" type="number" min="1" max="500" value="20" /></label>
+        <label>Almacenamiento contratado (MB)<input id="licenseStorageMb" type="number" min="0" max="102400" value="2048" /></label>
+      </div>
+      <div class="toolbar">
+        <button id="saveCommunicationsLicenseBtn" class="primary" type="button">Guardar licencia</button>
+        <span id="communicationsLicenseMsg" class="msg"></span>
+      </div>
+    </section>
+
     <section class="card">
       <h2>2. Crear primer ADMIN municipal</h2>
       <p>Este usuario queda amarrado al centro seleccionado. Después podrá crear operadores, resolutores y vecinos de su comuna desde SOS-ADMIN.</p>

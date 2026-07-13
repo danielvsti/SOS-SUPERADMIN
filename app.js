@@ -408,11 +408,63 @@ function fillFromCenter(center) {
   }
 
   renderCurrentAdmins(center);
+  loadCommunicationsLicense(center.code).catch((error) => setMsg("communicationsLicenseMsg", error.message, false));
 
   window.scrollTo({
     top: 0,
     behavior: "smooth"
   });
+}
+
+function renderCommunicationsLicense(license = {}) {
+  const setChecked = (id, value) => { const el = $(id); if (el) el.checked = value === true; };
+  setChecked("licenseCommunicationsEnabled", license.enabled);
+  setChecked("licenseMunicipalBroadcasts", license.municipal_broadcasts !== false);
+  setChecked("licensePersonalNotifications", license.personal_notifications);
+  setChecked("licenseSurveys", license.surveys);
+  setChecked("licenseVideo", license.video !== false);
+  setChecked("licensePushDelivery", license.push_delivery);
+  setValue("licenseMaxAnnouncements", license.max_active_announcements ?? 20);
+  setValue("licenseStorageMb", license.storage_limit_mb ?? 2048);
+  const badge = $("communicationsLicenseBadge");
+  if (badge) {
+    badge.textContent = license.enabled ? "Licencia activa" : "No contratado";
+    badge.className = `badge ${license.enabled ? "green" : "amber"}`;
+  }
+}
+
+async function loadCommunicationsLicense(code = ccCode()) {
+  if (!code) return;
+  setMsg("communicationsLicenseMsg", "Cargando licencia...", true);
+  const data = await api(`/superadmin/control-centers/${encodeURIComponent(code)}/communications-license`);
+  renderCommunicationsLicense(data.license || {});
+  setMsg("communicationsLicenseMsg", `Licencia cargada para ${code}`, true);
+}
+
+async function saveCommunicationsLicense() {
+  const code = ccCode();
+  if (!code) return setMsg("communicationsLicenseMsg", "Selecciona un Centro de Control", false);
+  try {
+    const license = {
+      enabled: $("licenseCommunicationsEnabled").checked,
+      municipal_broadcasts: $("licenseMunicipalBroadcasts").checked,
+      personal_notifications: $("licensePersonalNotifications").checked,
+      surveys: $("licenseSurveys").checked,
+      video: $("licenseVideo").checked,
+      push_delivery: $("licensePushDelivery").checked,
+      max_active_announcements: Number(getValue("licenseMaxAnnouncements") || 20),
+      storage_limit_mb: Number(getValue("licenseStorageMb") || 0)
+    };
+    const data = await api(`/superadmin/control-centers/${encodeURIComponent(code)}/communications-license`, {
+      method: "PUT",
+      body: JSON.stringify({ license })
+    });
+    renderCommunicationsLicense(data.license || license);
+    setMsg("communicationsLicenseMsg", "Licencia comercial guardada", true);
+    toast("Licencia de Comunicaciones actualizada");
+  } catch (error) {
+    setMsg("communicationsLicenseMsg", error.message, false);
+  }
 }
 
 function renderCenters() {
@@ -795,6 +847,7 @@ window.addEventListener("DOMContentLoaded", () => {
     loadCenters().catch((error) => toast(error.message));
   });
   on("saveCenterBtn", "click", saveCenter);
+  on("saveCommunicationsLicenseBtn", "click", saveCommunicationsLicense);
   on("saveAdminBtn", "click", saveAdmin);
   on("clearAdminFormBtn", "click", clearAdminForm);
   on("uploadBoundaryBtn", "click", uploadBoundary);
